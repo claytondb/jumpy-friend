@@ -91,8 +91,6 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
-        console.log('GameScene created');
-        
         // Background
         this.bg = this.add.graphics();
         this.drawBackground();
@@ -103,27 +101,29 @@ class GameScene extends Phaser.Scene {
         this.gameOver = false;
         this.jumpCount = 0;
         
-        // CHARGING STATE - THIS IS KEY
+        // CHARGING STATE
         this.isCharging = false;
         this.chargeStartTime = 0;
 
         // Settings per difficulty
         const settings = {
-            easy: { gap: 90, width: 100, moving: 0.1, speed: 100 },
-            medium: { gap: 110, width: 80, moving: 0.25, speed: 120 },
-            hard: { gap: 130, width: 65, moving: 0.4, speed: 140 }
+            easy: { gap: 100, width: 110, moving: 0.1, speed: 90 },
+            medium: { gap: 120, width: 90, moving: 0.25, speed: 110 },
+            hard: { gap: 140, width: 70, moving: 0.4, speed: 130 }
         };
         this.settings = settings[this.difficulty];
 
-        // Platforms
-        this.platforms = this.physics.add.staticGroup();
-        this.movingPlatforms = this.physics.add.group({ allowGravity: false, immovable: true });
+        // Platforms - using regular group for one-way collision
+        this.platforms = this.physics.add.group({
+            allowGravity: false,
+            immovable: true
+        });
 
         // Ground
         this.createPlatform(200, 560, 200);
 
         // Initial platforms
-        let y = 470;
+        let y = 460;
         for (let i = 0; i < 10; i++) {
             y -= Phaser.Math.Between(this.settings.gap - 20, this.settings.gap + 20);
             this.createPlatform(
@@ -135,34 +135,27 @@ class GameScene extends Phaser.Scene {
         }
         this.topPlatformY = y;
 
-        // Character - NO automatic jumping, NO bounce
+        // Character
         this.player = this.physics.add.sprite(200, 500, 'character');
         this.player.setScale(0.5);
         this.player.body.setSize(50, 60);
         this.player.body.setOffset(39, 68);
         this.player.setCollideWorldBounds(false);
-        this.player.setBounce(0); // NO BOUNCE
+        this.player.setBounce(0);
         this.player.setVelocityX(this.settings.speed);
 
-        // Collisions
-        this.physics.add.collider(this.player, this.platforms);
-        this.physics.add.collider(this.player, this.movingPlatforms);
+        // ONE-WAY PLATFORM COLLISION
+        // Only collide when player is falling down onto platform
+        this.physics.add.collider(this.player, this.platforms, null, (player, platform) => {
+            // Only collide if player is moving downward and above the platform
+            return player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 10;
+        }, this);
 
-        // ========== INPUT - POINTER ONLY ==========
-        console.log('Setting up input handlers');
-        
-        this.input.on('pointerdown', (pointer) => {
-            console.log('POINTER DOWN at', pointer.x, pointer.y);
-            this.onPointerDown();
-        });
-        
-        this.input.on('pointerup', (pointer) => {
-            console.log('POINTER UP at', pointer.x, pointer.y);
-            this.onPointerUp();
-        });
+        // ========== INPUT ==========
+        this.input.on('pointerdown', () => this.onPointerDown());
+        this.input.on('pointerup', () => this.onPointerUp());
 
         // ========== UI ==========
-        // Score
         this.scoreText = this.add.text(200, 30, '0', {
             fontSize: '48px',
             fontFamily: 'Arial Black',
@@ -185,13 +178,6 @@ class GameScene extends Phaser.Scene {
             fontFamily: 'Arial Black',
             fill: '#fff'
         }).setOrigin(0.5).setScrollFactor(0);
-        
-        // Debug text
-        this.debugText = this.add.text(10, 80, '', {
-            fontSize: '12px',
-            fill: '#fff',
-            backgroundColor: '#000'
-        }).setScrollFactor(0);
 
         // Camera
         this.cameras.main.startFollow(this.player, true, 0.1, 0.1, 0, 80);
@@ -213,23 +199,24 @@ class GameScene extends Phaser.Scene {
         }
         g.destroy();
 
+        const p = this.platforms.create(x, y, key);
+        p.body.setSize(width, 10);
+        p.body.setOffset(0, 7);
+        p.body.checkCollision.down = false; // Can pass through from below
+        p.body.checkCollision.left = false;
+        p.body.checkCollision.right = false;
+        
         if (moving) {
-            const p = this.movingPlatforms.create(x, y, key);
-            p.body.setSize(width, 14).setOffset(0, 5);
             p.setVelocityX(Phaser.Math.Between(50, 100) * (Math.random() > 0.5 ? 1 : -1));
             p.setData('left', x - 60);
             p.setData('right', x + 60);
-        } else {
-            const p = this.platforms.create(x, y, key);
-            p.body.setSize(width, 14).setOffset(0, 5);
-            p.refreshBody();
+            p.setData('moving', true);
         }
     }
 
     onPointerDown() {
         if (this.gameOver) return;
         
-        console.log('Starting charge');
         this.isCharging = true;
         this.chargeStartTime = this.time.now;
         this.chargeLabel.setText('CHARGING...');
@@ -246,32 +233,22 @@ class GameScene extends Phaser.Scene {
 
     onPointerUp() {
         if (this.gameOver) return;
-        if (!this.isCharging) {
-            console.log('Not charging, ignoring pointerup');
-            return;
-        }
-        
-        console.log('Releasing - attempting jump');
+        if (!this.isCharging) return;
         
         // Calculate charge power (0 to 1 over 1 second)
         const chargeTime = (this.time.now - this.chargeStartTime) / 1000;
         const power = Math.min(chargeTime, 1);
-        console.log('Charge time:', chargeTime, 'Power:', power);
         
         this.isCharging = false;
         
-        // Check if on ground
+        // Check if on ground (allow small tolerance)
         const onGround = this.player.body.blocked.down || this.player.body.touching.down;
-        console.log('On ground?', onGround, 'blocked.down:', this.player.body.blocked.down, 'touching.down:', this.player.body.touching.down);
         
         if (onGround) {
-            // JUMP! Only here, only on release, only if on ground
-            const velocity = -350 - (power * 400); // -350 to -750
-            console.log('JUMPING with velocity:', velocity);
+            // MORE POWERFUL JUMP! -450 to -950
+            const velocity = -450 - (power * 500);
             this.player.setVelocityY(velocity);
             this.jumpCount++;
-        } else {
-            console.log('NOT on ground, cannot jump');
         }
         
         // Reset visuals
@@ -289,14 +266,6 @@ class GameScene extends Phaser.Scene {
 
     update() {
         if (this.gameOver) return;
-
-        // Update debug info
-        const onGround = this.player.body.blocked.down || this.player.body.touching.down;
-        this.debugText.setText(
-            `Charging: ${this.isCharging}\n` +
-            `OnGround: ${onGround}\n` +
-            `VelY: ${Math.round(this.player.body.velocity.y)}`
-        );
 
         // Update charge meter while charging
         if (this.isCharging) {
@@ -344,8 +313,8 @@ class GameScene extends Phaser.Scene {
         }
 
         // Moving platforms bounce
-        this.movingPlatforms.children.iterate(p => {
-            if (!p) return;
+        this.platforms.children.iterate(p => {
+            if (!p || !p.getData('moving')) return;
             if (p.x <= p.getData('left') || p.x >= p.getData('right')) {
                 p.setVelocityX(-p.body.velocity.x);
             }
@@ -365,7 +334,6 @@ class GameScene extends Phaser.Scene {
         // Remove platforms below
         const bottomY = this.cameras.main.scrollY + 700;
         this.platforms.children.iterate(p => { if (p && p.y > bottomY) p.destroy(); });
-        this.movingPlatforms.children.iterate(p => { if (p && p.y > bottomY) p.destroy(); });
 
         // Score
         if (this.player.y < this.maxHeight) {
@@ -405,7 +373,6 @@ class GameScene extends Phaser.Scene {
             localStorage.setItem('jumpyfriend_highscore', this.score);
         }
 
-        // Overlay
         const ov = this.add.graphics().setScrollFactor(0);
         ov.fillStyle(0x000000, 0.8);
         ov.fillRect(0, 0, 400, 600);
@@ -433,7 +400,6 @@ class GameScene extends Phaser.Scene {
             }).setOrigin(0.5).setScrollFactor(0);
         }
 
-        // Buttons
         this.createButton(200, 420, 'Play Again', 0x4CAF50, () => {
             this.scene.restart({ difficulty: this.difficulty });
         });
@@ -471,7 +437,7 @@ const config = {
     },
     physics: {
         default: 'arcade',
-        arcade: { gravity: { y: 900 }, debug: false }
+        arcade: { gravity: { y: 800 }, debug: false }
     },
     scene: [MenuScene, GameScene]
 };
