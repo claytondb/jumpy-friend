@@ -91,6 +91,8 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
+        console.log('GameScene created');
+        
         // Background
         this.bg = this.add.graphics();
         this.drawBackground();
@@ -101,9 +103,9 @@ class GameScene extends Phaser.Scene {
         this.gameOver = false;
         this.jumpCount = 0;
         
-        // CHARGING STATE
-        this.charging = false;
-        this.chargeStart = 0;
+        // CHARGING STATE - THIS IS KEY
+        this.isCharging = false;
+        this.chargeStartTime = 0;
 
         // Settings per difficulty
         const settings = {
@@ -133,25 +135,31 @@ class GameScene extends Phaser.Scene {
         }
         this.topPlatformY = y;
 
-        // Character
+        // Character - NO automatic jumping, NO bounce
         this.player = this.physics.add.sprite(200, 500, 'character');
         this.player.setScale(0.5);
         this.player.body.setSize(50, 60);
         this.player.body.setOffset(39, 68);
         this.player.setCollideWorldBounds(false);
+        this.player.setBounce(0); // NO BOUNCE
         this.player.setVelocityX(this.settings.speed);
 
         // Collisions
         this.physics.add.collider(this.player, this.platforms);
         this.physics.add.collider(this.player, this.movingPlatforms);
 
-        // ========== INPUT ==========
-        // Pointer (mouse/touch)
-        this.input.on('pointerdown', () => this.startCharge());
-        this.input.on('pointerup', () => this.doJump());
+        // ========== INPUT - POINTER ONLY ==========
+        console.log('Setting up input handlers');
         
-        // Keyboard
-        this.spaceKey = this.input.keyboard.addKey('SPACE');
+        this.input.on('pointerdown', (pointer) => {
+            console.log('POINTER DOWN at', pointer.x, pointer.y);
+            this.onPointerDown();
+        });
+        
+        this.input.on('pointerup', (pointer) => {
+            console.log('POINTER UP at', pointer.x, pointer.y);
+            this.onPointerUp();
+        });
 
         // ========== UI ==========
         // Score
@@ -172,11 +180,18 @@ class GameScene extends Phaser.Scene {
         this.meterFill = this.add.graphics().setScrollFactor(0);
 
         // Charge text
-        this.chargeLabel = this.add.text(200, 545, 'TAP & HOLD TO CHARGE', {
-            fontSize: '16px',
+        this.chargeLabel = this.add.text(200, 545, 'HOLD TO CHARGE', {
+            fontSize: '18px',
             fontFamily: 'Arial Black',
             fill: '#fff'
         }).setOrigin(0.5).setScrollFactor(0);
+        
+        // Debug text
+        this.debugText = this.add.text(10, 80, '', {
+            fontSize: '12px',
+            fill: '#fff',
+            backgroundColor: '#000'
+        }).setScrollFactor(0);
 
         // Camera
         this.cameras.main.startFollow(this.player, true, 0.1, 0.1, 0, 80);
@@ -211,15 +226,15 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    startCharge() {
+    onPointerDown() {
         if (this.gameOver) return;
         
-        // Always allow starting charge
-        this.charging = true;
-        this.chargeStart = this.time.now;
+        console.log('Starting charge');
+        this.isCharging = true;
+        this.chargeStartTime = this.time.now;
         this.chargeLabel.setText('CHARGING...');
         
-        // Visual squish
+        // Visual squish while holding
         this.tweens.killTweensOf(this.player);
         this.tweens.add({
             targets: this.player,
@@ -229,28 +244,39 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    doJump() {
-        if (this.gameOver || !this.charging) return;
+    onPointerUp() {
+        if (this.gameOver) return;
+        if (!this.isCharging) {
+            console.log('Not charging, ignoring pointerup');
+            return;
+        }
         
-        // Calculate charge (0 to 1 over 1 second)
-        const chargeTime = (this.time.now - this.chargeStart) / 1000;
+        console.log('Releasing - attempting jump');
+        
+        // Calculate charge power (0 to 1 over 1 second)
+        const chargeTime = (this.time.now - this.chargeStartTime) / 1000;
         const power = Math.min(chargeTime, 1);
+        console.log('Charge time:', chargeTime, 'Power:', power);
         
-        this.charging = false;
+        this.isCharging = false;
         
-        // Only jump if on ground
+        // Check if on ground
         const onGround = this.player.body.blocked.down || this.player.body.touching.down;
+        console.log('On ground?', onGround, 'blocked.down:', this.player.body.blocked.down, 'touching.down:', this.player.body.touching.down);
         
         if (onGround) {
-            // JUMP!
+            // JUMP! Only here, only on release, only if on ground
             const velocity = -350 - (power * 400); // -350 to -750
+            console.log('JUMPING with velocity:', velocity);
             this.player.setVelocityY(velocity);
             this.jumpCount++;
+        } else {
+            console.log('NOT on ground, cannot jump');
         }
         
         // Reset visuals
         this.meterFill.clear();
-        this.chargeLabel.setText('TAP & HOLD TO CHARGE');
+        this.chargeLabel.setText('HOLD TO CHARGE');
         
         this.tweens.killTweensOf(this.player);
         this.tweens.add({
@@ -264,17 +290,17 @@ class GameScene extends Phaser.Scene {
     update() {
         if (this.gameOver) return;
 
-        // Keyboard
-        if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-            this.startCharge();
-        }
-        if (Phaser.Input.Keyboard.JustUp(this.spaceKey)) {
-            this.doJump();
-        }
+        // Update debug info
+        const onGround = this.player.body.blocked.down || this.player.body.touching.down;
+        this.debugText.setText(
+            `Charging: ${this.isCharging}\n` +
+            `OnGround: ${onGround}\n` +
+            `VelY: ${Math.round(this.player.body.velocity.y)}`
+        );
 
         // Update charge meter while charging
-        if (this.charging) {
-            const chargeTime = (this.time.now - this.chargeStart) / 1000;
+        if (this.isCharging) {
+            const chargeTime = (this.time.now - this.chargeStartTime) / 1000;
             const power = Math.min(chargeTime, 1);
             const pct = Math.floor(power * 100);
 
@@ -302,7 +328,7 @@ class GameScene extends Phaser.Scene {
             if (power >= 1) {
                 this.chargeLabel.setText('MAX POWER!');
             } else {
-                this.chargeLabel.setText(`${pct}%`);
+                this.chargeLabel.setText(`CHARGING ${pct}%`);
             }
         }
 
