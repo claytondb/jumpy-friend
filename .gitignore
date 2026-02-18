@@ -1,0 +1,21 @@
+# Video files (too large for git)
+*.mp4
+*.mov
+*.avi
+
+# Design source files
+*.afdesign
+*.psd
+*.ai
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (if any)
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
