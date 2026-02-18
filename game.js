@@ -1,5 +1,4 @@
 // Jumpy Friend - Hold-to-Jump Platformer
-// A charming hold-to-jump infinite climber game
 
 class MenuScene extends Phaser.Scene {
     constructor() {
@@ -11,17 +10,13 @@ class MenuScene extends Phaser.Scene {
     }
 
     create() {
-        // Sky gradient background
         const graphics = this.add.graphics();
         graphics.fillGradientStyle(0x87CEEB, 0x87CEEB, 0x4AA8D8, 0x4AA8D8, 1);
         graphics.fillRect(0, 0, 400, 600);
 
-        // Clouds decoration
         this.add.text(50, 50, '☁️', { fontSize: '48px' }).setAlpha(0.6);
         this.add.text(280, 80, '☁️', { fontSize: '32px' }).setAlpha(0.5);
-        this.add.text(150, 120, '☁️', { fontSize: '24px' }).setAlpha(0.4);
 
-        // Character preview (bouncing animation)
         this.character = this.add.image(200, 280, 'character').setScale(1.5);
         this.tweens.add({
             targets: this.character,
@@ -32,71 +27,49 @@ class MenuScene extends Phaser.Scene {
             repeat: -1
         });
 
-        // Title with shadow
-        this.add.text(202, 82, 'Jumpy Friend', {
-            fontSize: '42px',
-            fontFamily: 'Arial Black, sans-serif',
-            fill: '#2d5a27'
-        }).setOrigin(0.5);
         this.add.text(200, 80, 'Jumpy Friend', {
             fontSize: '42px',
             fontFamily: 'Arial Black, sans-serif',
-            fill: '#4CAF50'
+            fill: '#4CAF50',
+            stroke: '#2d5a27',
+            strokeThickness: 4
         }).setOrigin(0.5);
 
-        // Instructions
-        this.add.text(200, 160, 'HOLD anywhere to charge', {
-            fontSize: '18px',
+        this.add.text(200, 150, 'HOLD to charge\nRELEASE to jump!', {
+            fontSize: '20px',
             fontFamily: 'Arial, sans-serif',
             fill: '#fff',
             stroke: '#333',
-            strokeThickness: 3
-        }).setOrigin(0.5);
-        
-        this.add.text(200, 185, 'RELEASE to jump!', {
-            fontSize: '18px',
-            fontFamily: 'Arial, sans-serif',
-            fill: '#FFD700',
-            stroke: '#333',
-            strokeThickness: 3
+            strokeThickness: 3,
+            align: 'center'
         }).setOrigin(0.5);
 
-        // Difficulty buttons
         const difficulties = [
-            { name: 'Easy', y: 380, color: '#4CAF50' },
-            { name: 'Medium', y: 440, color: '#FF9800' },
-            { name: 'Hard', y: 500, color: '#F44336' }
+            { name: 'Easy', y: 380, color: 0x4CAF50 },
+            { name: 'Medium', y: 440, color: 0xFF9800 },
+            { name: 'Hard', y: 500, color: 0xF44336 }
         ];
 
         difficulties.forEach(diff => {
             const btn = this.add.graphics();
-            btn.fillStyle(Phaser.Display.Color.HexStringToColor(diff.color).color, 1);
-            btn.fillRoundedRect(100, diff.y - 20, 200, 45, 12);
-            btn.lineStyle(3, 0xffffff, 0.8);
-            btn.strokeRoundedRect(100, diff.y - 20, 200, 45, 12);
+            btn.fillStyle(diff.color, 1);
+            btn.fillRoundedRect(100, diff.y - 22, 200, 44, 12);
 
-            const buttonText = this.add.text(200, diff.y, diff.name, {
+            this.add.text(200, diff.y, diff.name, {
                 fontSize: '24px',
                 fontFamily: 'Arial Black, sans-serif',
-                fill: '#fff',
-                stroke: '#333',
-                strokeThickness: 2
+                fill: '#fff'
             }).setOrigin(0.5);
 
-            const zone = this.add.zone(200, diff.y, 200, 45).setInteractive();
+            const zone = this.add.zone(200, diff.y, 200, 44).setInteractive();
             zone.on('pointerdown', () => {
-                this.cameras.main.fade(300, 0, 0, 0);
-                this.time.delayedCall(300, () => {
-                    this.scene.start('GameScene', { difficulty: diff.name.toLowerCase() });
-                });
+                this.scene.start('GameScene', { difficulty: diff.name.toLowerCase() });
             });
         });
 
-        // High scores display
-        const highScores = JSON.parse(localStorage.getItem('jumpyfriend_highscore') || '0');
-        this.add.text(200, 560, `Best: ${highScores}`, {
+        const best = localStorage.getItem('jumpyfriend_highscore') || '0';
+        this.add.text(200, 560, `Best: ${best}`, {
             fontSize: '18px',
-            fontFamily: 'Arial, sans-serif',
             fill: '#fff',
             stroke: '#333',
             strokeThickness: 2
@@ -118,404 +91,348 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
-        this.cameras.main.fadeIn(300);
-
         // Background
-        this.bgGraphics = this.add.graphics();
-        this.updateBackground();
+        this.bg = this.add.graphics();
+        this.drawBackground();
 
-        // Game state
+        // State
         this.score = 0;
         this.maxHeight = 600;
-        this.isCharging = false;
-        this.chargeTime = 0;
         this.gameOver = false;
         this.jumpCount = 0;
-        this.isOnGround = false;
+        
+        // CHARGING STATE
+        this.charging = false;
+        this.chargeStart = 0;
 
-        // Difficulty settings
-        this.settings = {
-            easy: { gapMin: 80, gapMax: 100, platformWidth: 100, moveChance: 0.15, speed: 100 },
-            medium: { gapMin: 90, gapMax: 120, platformWidth: 80, moveChance: 0.3, speed: 120 },
-            hard: { gapMin: 100, gapMax: 140, platformWidth: 60, moveChance: 0.5, speed: 140 }
-        }[this.difficulty];
+        // Settings per difficulty
+        const settings = {
+            easy: { gap: 90, width: 100, moving: 0.1, speed: 100 },
+            medium: { gap: 110, width: 80, moving: 0.25, speed: 120 },
+            hard: { gap: 130, width: 65, moving: 0.4, speed: 140 }
+        };
+        this.settings = settings[this.difficulty];
 
-        // Platform groups
+        // Platforms
         this.platforms = this.physics.add.staticGroup();
-        this.movingPlatforms = this.physics.add.group({
-            immovable: true,
-            allowGravity: false
-        });
+        this.movingPlatforms = this.physics.add.group({ allowGravity: false, immovable: true });
 
-        // Create initial ground platform
-        this.createPlatform(200, 550, 180, false);
+        // Ground
+        this.createPlatform(200, 560, 200);
 
-        // Generate initial platforms
-        let y = 450;
-        for (let i = 0; i < 12; i++) {
-            y -= Phaser.Math.Between(this.settings.gapMin, this.settings.gapMax);
-            const x = Phaser.Math.Between(60, 340);
-            const isMoving = Math.random() < this.settings.moveChance;
-            this.createPlatform(x, y, this.settings.platformWidth, isMoving);
+        // Initial platforms
+        let y = 470;
+        for (let i = 0; i < 10; i++) {
+            y -= Phaser.Math.Between(this.settings.gap - 20, this.settings.gap + 20);
+            this.createPlatform(
+                Phaser.Math.Between(80, 320),
+                y,
+                this.settings.width,
+                Math.random() < this.settings.moving
+            );
         }
-        this.highestPlatformY = y;
+        this.topPlatformY = y;
 
         // Character
-        this.character = this.physics.add.sprite(200, 480, 'character');
-        this.character.setScale(0.5);
-        this.character.setBounce(0);
-        this.character.setCollideWorldBounds(false);
-        this.character.body.setSize(48, 60);
-        this.character.body.setOffset(40, 68);
-        this.character.setVelocityX(this.settings.speed);
+        this.player = this.physics.add.sprite(200, 500, 'character');
+        this.player.setScale(0.5);
+        this.player.body.setSize(50, 60);
+        this.player.body.setOffset(39, 68);
+        this.player.setCollideWorldBounds(false);
+        this.player.setVelocityX(this.settings.speed);
 
         // Collisions
-        this.physics.add.collider(this.character, this.platforms, this.onLand, null, this);
-        this.physics.add.collider(this.character, this.movingPlatforms, this.onLand, null, this);
+        this.physics.add.collider(this.player, this.platforms);
+        this.physics.add.collider(this.player, this.movingPlatforms);
 
-        // === MAIN INPUT: Entire screen is the jump button ===
-        this.input.on('pointerdown', this.startCharging, this);
-        this.input.on('pointerup', this.releaseJump, this);
+        // ========== INPUT ==========
+        // Pointer (mouse/touch)
+        this.input.on('pointerdown', () => this.startCharge());
+        this.input.on('pointerup', () => this.doJump());
         
-        // Keyboard support
-        this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        // Keyboard
+        this.spaceKey = this.input.keyboard.addKey('SPACE');
 
-        // === UI LAYER (fixed to camera) ===
-        
-        // Score display
+        // ========== UI ==========
+        // Score
         this.scoreText = this.add.text(200, 30, '0', {
             fontSize: '48px',
-            fontFamily: 'Arial Black, sans-serif',
+            fontFamily: 'Arial Black',
             fill: '#fff',
             stroke: '#333',
-            strokeThickness: 6
+            strokeThickness: 5
         }).setOrigin(0.5).setScrollFactor(0);
 
-        // === CHARGE METER - Big and visible at bottom ===
+        // Charge meter background
         this.meterBg = this.add.graphics().setScrollFactor(0);
-        this.meterBg.fillStyle(0x000000, 0.5);
-        this.meterBg.fillRoundedRect(50, 530, 300, 40, 20);
-        this.meterBg.lineStyle(3, 0xffffff, 0.5);
-        this.meterBg.strokeRoundedRect(50, 530, 300, 40, 20);
+        this.meterBg.fillStyle(0x000000, 0.6);
+        this.meterBg.fillRoundedRect(50, 520, 300, 50, 25);
 
+        // Charge meter fill
         this.meterFill = this.add.graphics().setScrollFactor(0);
 
         // Charge text
-        this.chargeText = this.add.text(200, 550, 'HOLD ANYWHERE TO CHARGE!', {
-            fontSize: '14px',
-            fontFamily: 'Arial Black, sans-serif',
-            fill: '#fff',
-            stroke: '#000',
-            strokeThickness: 3
+        this.chargeLabel = this.add.text(200, 545, 'TAP & HOLD TO CHARGE', {
+            fontSize: '16px',
+            fontFamily: 'Arial Black',
+            fill: '#fff'
         }).setOrigin(0.5).setScrollFactor(0);
 
-        // Charge percentage
-        this.chargePercent = this.add.text(200, 505, '', {
-            fontSize: '28px',
-            fontFamily: 'Arial Black, sans-serif',
-            fill: '#FFD700',
-            stroke: '#000',
-            strokeThickness: 4
-        }).setOrigin(0.5).setScrollFactor(0).setAlpha(0);
-
-        // Camera follow
-        this.cameras.main.startFollow(this.character, true, 0.1, 0.1, 0, 100);
-        this.cameras.main.setBounds(0, -Infinity, 400, Infinity);
+        // Camera
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1, 0, 80);
+        this.cameras.main.setBounds(0, -99999, 400, 999999);
     }
 
-    createPlatform(x, y, width, isMoving) {
-        const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-        
-        // Platform style - grassy top
-        graphics.fillStyle(0x8B4513);
-        graphics.fillRoundedRect(0, 8, width, 16, 4);
-        graphics.fillStyle(0x228B22);
-        graphics.fillRoundedRect(0, 0, width, 14, 6);
-        graphics.fillStyle(0x32CD32);
-        graphics.fillRoundedRect(4, 2, width - 8, 6, 3);
+    createPlatform(x, y, width, moving = false) {
+        const g = this.make.graphics();
+        g.fillStyle(0x8B4513);
+        g.fillRoundedRect(0, 10, width, 14, 4);
+        g.fillStyle(0x228B22);
+        g.fillRoundedRect(0, 0, width, 14, 6);
+        g.fillStyle(0x32CD32);
+        g.fillRoundedRect(4, 2, width - 8, 6, 3);
 
-        const key = `platform_${width}_${isMoving ? 'm' : 's'}`;
+        const key = `plat_${width}`;
         if (!this.textures.exists(key)) {
-            graphics.generateTexture(key, width, 24);
+            g.generateTexture(key, width, 24);
         }
+        g.destroy();
 
-        if (isMoving) {
-            const platform = this.movingPlatforms.create(x, y, key);
-            platform.body.setSize(width, 16);
-            platform.body.setOffset(0, 4);
-            platform.setVelocityX(Phaser.Math.Between(-80, 80) || 60);
-            platform.setData('minX', x - 60);
-            platform.setData('maxX', x + 60);
+        if (moving) {
+            const p = this.movingPlatforms.create(x, y, key);
+            p.body.setSize(width, 14).setOffset(0, 5);
+            p.setVelocityX(Phaser.Math.Between(50, 100) * (Math.random() > 0.5 ? 1 : -1));
+            p.setData('left', x - 60);
+            p.setData('right', x + 60);
         } else {
-            const platform = this.platforms.create(x, y, key);
-            platform.body.setSize(width, 16);
-            platform.body.setOffset(0, 4);
-            platform.refreshBody();
+            const p = this.platforms.create(x, y, key);
+            p.body.setSize(width, 14).setOffset(0, 5);
+            p.refreshBody();
         }
     }
 
-    onLand(character, platform) {
-        if (character.body.touching.down) {
-            this.isOnGround = true;
-        }
-    }
-
-    startCharging() {
+    startCharge() {
         if (this.gameOver) return;
         
-        // Can charge anytime when on ground
-        this.isOnGround = this.character.body.touching.down || this.character.body.blocked.down;
+        // Always allow starting charge
+        this.charging = true;
+        this.chargeStart = this.time.now;
+        this.chargeLabel.setText('CHARGING...');
         
-        if (this.isOnGround) {
-            this.isCharging = true;
-            this.chargeTime = 0;
-            this.chargeText.setText('CHARGING...');
-            this.chargePercent.setAlpha(1);
-            
-            // Squish character while charging
-            this.tweens.add({
-                targets: this.character,
-                scaleY: 0.35,
-                scaleX: 0.6,
-                duration: 150,
-                ease: 'Quad.easeOut'
-            });
-        }
+        // Visual squish
+        this.tweens.killTweensOf(this.player);
+        this.tweens.add({
+            targets: this.player,
+            scaleY: 0.35,
+            scaleX: 0.6,
+            duration: 100
+        });
     }
 
-    releaseJump() {
-        if (this.gameOver) return;
+    doJump() {
+        if (this.gameOver || !this.charging) return;
         
-        if (this.isCharging) {
-            this.isCharging = false;
-            
-            // Calculate jump power (0 to 1)
-            const power = Math.min(this.chargeTime / 1.0, 1); // 1 second for full charge
-            
-            // Jump! Minimum jump + bonus from charge
-            const jumpVelocity = -300 - (power * 450); // -300 to -750
-            this.character.setVelocityY(jumpVelocity);
+        // Calculate charge (0 to 1 over 1 second)
+        const chargeTime = (this.time.now - this.chargeStart) / 1000;
+        const power = Math.min(chargeTime, 1);
+        
+        this.charging = false;
+        
+        // Only jump if on ground
+        const onGround = this.player.body.blocked.down || this.player.body.touching.down;
+        
+        if (onGround) {
+            // JUMP!
+            const velocity = -350 - (power * 400); // -350 to -750
+            this.player.setVelocityY(velocity);
             this.jumpCount++;
-            
-            // Reset visuals
-            this.meterFill.clear();
-            this.chargeText.setText('HOLD ANYWHERE TO CHARGE!');
-            this.chargePercent.setAlpha(0);
-
-            // Stretch animation on jump
-            this.tweens.add({
-                targets: this.character,
-                scaleY: 0.6,
-                scaleX: 0.4,
-                duration: 100,
-                ease: 'Quad.easeOut',
-                yoyo: true,
-                onComplete: () => {
-                    this.character.setScale(0.5);
-                }
-            });
         }
+        
+        // Reset visuals
+        this.meterFill.clear();
+        this.chargeLabel.setText('TAP & HOLD TO CHARGE');
+        
+        this.tweens.killTweensOf(this.player);
+        this.tweens.add({
+            targets: this.player,
+            scaleY: 0.5,
+            scaleX: 0.5,
+            duration: 100
+        });
     }
 
-    update(time, delta) {
+    update() {
         if (this.gameOver) return;
 
-        this.updateBackground();
-
-        // Check if on ground
-        this.isOnGround = this.character.body.touching.down || this.character.body.blocked.down;
-
-        // Keyboard charging
-        if (this.spaceKey.isDown && !this.isCharging && this.isOnGround) {
-            this.startCharging();
+        // Keyboard
+        if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+            this.startCharge();
         }
-        if (this.spaceKey.isUp && this.isCharging) {
-            this.releaseJump();
+        if (Phaser.Input.Keyboard.JustUp(this.spaceKey)) {
+            this.doJump();
         }
 
-        // Update charge meter
-        if (this.isCharging && this.isOnGround) {
-            this.chargeTime += delta / 1000;
-            const power = Math.min(this.chargeTime / 1.0, 1);
-            const percent = Math.floor(power * 100);
-            
-            // Update meter fill with color gradient
+        // Update charge meter while charging
+        if (this.charging) {
+            const chargeTime = (this.time.now - this.chargeStart) / 1000;
+            const power = Math.min(chargeTime, 1);
+            const pct = Math.floor(power * 100);
+
             this.meterFill.clear();
-            const color = Phaser.Display.Color.Interpolate.ColorWithColor(
-                { r: 76, g: 175, b: 80 },   // Green
-                { r: 255, g: 215, b: 0 },    // Gold at full
-                100,
-                percent
-            );
+            
+            // Color: green -> yellow -> gold
+            let color;
+            if (power < 0.5) {
+                color = Phaser.Display.Color.Interpolate.ColorWithColor(
+                    { r: 76, g: 175, b: 80 },
+                    { r: 255, g: 235, b: 59 },
+                    100, pct * 2
+                );
+            } else {
+                color = Phaser.Display.Color.Interpolate.ColorWithColor(
+                    { r: 255, g: 235, b: 59 },
+                    { r: 255, g: 193, b: 7 },
+                    100, (pct - 50) * 2
+                );
+            }
+            
             this.meterFill.fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 1);
-            this.meterFill.fillRoundedRect(55, 535, 290 * power, 30, 15);
-            
-            // Update percentage text
-            this.chargePercent.setText(`${percent}%`);
-            
-            // Pulse effect at full charge
+            this.meterFill.fillRoundedRect(55, 525, 290 * power, 40, 20);
+
             if (power >= 1) {
-                this.chargeText.setText('MAX POWER! RELEASE!');
-                this.meterFill.lineStyle(4, 0xFFD700, 1);
-                this.meterFill.strokeRoundedRect(55, 535, 290, 30, 15);
+                this.chargeLabel.setText('MAX POWER!');
+            } else {
+                this.chargeLabel.setText(`${pct}%`);
             }
         }
 
         // Wall bounce
-        if (this.character.x < 20) {
-            this.character.x = 20;
-            this.character.setVelocityX(Math.abs(this.character.body.velocity.x));
-            this.character.setFlipX(false);
-        }
-        if (this.character.x > 380) {
-            this.character.x = 380;
-            this.character.setVelocityX(-Math.abs(this.character.body.velocity.x));
-            this.character.setFlipX(true);
+        if (this.player.x < 25) {
+            this.player.x = 25;
+            this.player.setVelocityX(Math.abs(this.player.body.velocity.x));
+            this.player.setFlipX(false);
+        } else if (this.player.x > 375) {
+            this.player.x = 375;
+            this.player.setVelocityX(-Math.abs(this.player.body.velocity.x));
+            this.player.setFlipX(true);
         }
 
-        // Moving platforms
-        this.movingPlatforms.getChildren().forEach(platform => {
-            const minX = platform.getData('minX');
-            const maxX = platform.getData('maxX');
-            if (platform.x <= minX) {
-                platform.setVelocityX(Math.abs(platform.body.velocity.x));
-            } else if (platform.x >= maxX) {
-                platform.setVelocityX(-Math.abs(platform.body.velocity.x));
+        // Moving platforms bounce
+        this.movingPlatforms.children.iterate(p => {
+            if (!p) return;
+            if (p.x <= p.getData('left') || p.x >= p.getData('right')) {
+                p.setVelocityX(-p.body.velocity.x);
             }
         });
 
-        // Generate new platforms above
-        while (this.highestPlatformY > this.cameras.main.scrollY - 200) {
-            this.highestPlatformY -= Phaser.Math.Between(this.settings.gapMin, this.settings.gapMax);
-            const x = Phaser.Math.Between(60, 340);
-            const isMoving = Math.random() < this.settings.moveChance;
-            this.createPlatform(x, this.highestPlatformY, this.settings.platformWidth, isMoving);
+        // Generate platforms above
+        while (this.topPlatformY > this.cameras.main.scrollY - 200) {
+            this.topPlatformY -= Phaser.Math.Between(this.settings.gap - 20, this.settings.gap + 20);
+            this.createPlatform(
+                Phaser.Math.Between(80, 320),
+                this.topPlatformY,
+                this.settings.width,
+                Math.random() < this.settings.moving
+            );
         }
 
-        // Remove platforms below view
+        // Remove platforms below
         const bottomY = this.cameras.main.scrollY + 700;
-        this.platforms.getChildren().forEach(p => {
-            if (p.y > bottomY) p.destroy();
-        });
-        this.movingPlatforms.getChildren().forEach(p => {
-            if (p.y > bottomY) p.destroy();
-        });
+        this.platforms.children.iterate(p => { if (p && p.y > bottomY) p.destroy(); });
+        this.movingPlatforms.children.iterate(p => { if (p && p.y > bottomY) p.destroy(); });
 
-        // Score based on height
-        if (this.character.y < this.maxHeight) {
-            this.maxHeight = this.character.y;
+        // Score
+        if (this.player.y < this.maxHeight) {
+            this.maxHeight = this.player.y;
             this.score = Math.floor((600 - this.maxHeight) / 10);
-            this.scoreText.setText(this.score.toString());
+            this.scoreText.setText(this.score);
         }
 
-        // Game over
-        if (this.character.y > this.cameras.main.scrollY + 650) {
-            this.triggerGameOver();
+        // Background
+        this.drawBackground();
+
+        // Death
+        if (this.player.y > this.cameras.main.scrollY + 650) {
+            this.endGame();
         }
     }
 
-    updateBackground() {
-        const scrollY = this.cameras.main.scrollY;
-        const height = Math.abs(scrollY);
-        
-        let topColor, bottomColor;
-        if (height < 1000) {
-            topColor = 0x87CEEB;
-            bottomColor = 0xB0E0E6;
-        } else if (height < 3000) {
-            topColor = 0x6BB3D9;
-            bottomColor = 0x87CEEB;
-        } else if (height < 6000) {
-            topColor = 0x4A90B8;
-            bottomColor = 0x6BB3D9;
-        } else {
-            topColor = 0x2C3E50;
-            bottomColor = 0x4A90B8;
-        }
+    drawBackground() {
+        const h = Math.abs(this.cameras.main.scrollY);
+        let top = 0x87CEEB, bot = 0xADD8E6;
+        if (h > 2000) { top = 0x5DADE2; bot = 0x87CEEB; }
+        if (h > 5000) { top = 0x3498DB; bot = 0x5DADE2; }
+        if (h > 10000) { top = 0x1A5276; bot = 0x3498DB; }
 
-        this.bgGraphics.clear();
-        this.bgGraphics.fillGradientStyle(topColor, topColor, bottomColor, bottomColor, 1);
-        this.bgGraphics.fillRect(0, scrollY - 100, 400, 800);
-        this.bgGraphics.setDepth(-1);
+        this.bg.clear();
+        this.bg.fillGradientStyle(top, top, bot, bot, 1);
+        this.bg.fillRect(0, this.cameras.main.scrollY - 50, 400, 700);
+        this.bg.setDepth(-1);
     }
 
-    triggerGameOver() {
+    endGame() {
         if (this.gameOver) return;
         this.gameOver = true;
 
-        const currentBest = parseInt(localStorage.getItem('jumpyfriend_highscore') || '0');
-        if (this.score > currentBest) {
-            localStorage.setItem('jumpyfriend_highscore', this.score.toString());
+        const best = parseInt(localStorage.getItem('jumpyfriend_highscore') || '0');
+        if (this.score > best) {
+            localStorage.setItem('jumpyfriend_highscore', this.score);
         }
 
-        const overlay = this.add.graphics().setScrollFactor(0);
-        overlay.fillStyle(0x000000, 0.7);
-        overlay.fillRect(0, 0, 400, 600);
+        // Overlay
+        const ov = this.add.graphics().setScrollFactor(0);
+        ov.fillStyle(0x000000, 0.8);
+        ov.fillRect(0, 0, 400, 600);
 
-        this.add.text(200, 180, 'GAME OVER', {
-            fontSize: '42px',
-            fontFamily: 'Arial Black, sans-serif',
-            fill: '#F44336',
-            stroke: '#fff',
-            strokeThickness: 4
+        this.add.text(200, 150, 'GAME OVER', {
+            fontSize: '48px',
+            fontFamily: 'Arial Black',
+            fill: '#F44336'
         }).setOrigin(0.5).setScrollFactor(0);
 
-        this.add.text(200, 250, `Score: ${this.score}`, {
-            fontSize: '32px',
-            fontFamily: 'Arial, sans-serif',
+        this.add.text(200, 230, `Score: ${this.score}`, {
+            fontSize: '36px',
             fill: '#fff'
         }).setOrigin(0.5).setScrollFactor(0);
 
-        this.add.text(200, 295, `Jumps: ${this.jumpCount}`, {
+        this.add.text(200, 280, `Jumps: ${this.jumpCount}`, {
             fontSize: '20px',
-            fontFamily: 'Arial, sans-serif',
             fill: '#aaa'
         }).setOrigin(0.5).setScrollFactor(0);
 
-        const bestScore = localStorage.getItem('jumpyfriend_highscore');
-        if (this.score >= parseInt(bestScore)) {
-            this.add.text(200, 340, '🏆 NEW BEST! 🏆', {
+        if (this.score >= best && this.score > 0) {
+            this.add.text(200, 330, '🏆 NEW BEST! 🏆', {
                 fontSize: '28px',
-                fontFamily: 'Arial, sans-serif',
                 fill: '#FFD700'
             }).setOrigin(0.5).setScrollFactor(0);
         }
 
-        // Restart button
-        const restartBtn = this.add.graphics().setScrollFactor(0);
-        restartBtn.fillStyle(0x4CAF50, 1);
-        restartBtn.fillRoundedRect(100, 400, 200, 55, 12);
-        
-        this.add.text(200, 427, 'Play Again', {
-            fontSize: '24px',
-            fontFamily: 'Arial Black, sans-serif',
-            fill: '#fff'
-        }).setOrigin(0.5).setScrollFactor(0);
-
-        const restartZone = this.add.zone(200, 427, 200, 55).setInteractive().setScrollFactor(0);
-        restartZone.on('pointerdown', () => {
+        // Buttons
+        this.createButton(200, 420, 'Play Again', 0x4CAF50, () => {
             this.scene.restart({ difficulty: this.difficulty });
         });
 
-        // Menu button
-        const menuBtn = this.add.graphics().setScrollFactor(0);
-        menuBtn.fillStyle(0x607D8B, 1);
-        menuBtn.fillRoundedRect(100, 470, 200, 55, 12);
-        
-        this.add.text(200, 497, 'Menu', {
-            fontSize: '24px',
-            fontFamily: 'Arial Black, sans-serif',
-            fill: '#fff'
-        }).setOrigin(0.5).setScrollFactor(0);
-
-        const menuZone = this.add.zone(200, 497, 200, 55).setInteractive().setScrollFactor(0);
-        menuZone.on('pointerdown', () => {
+        this.createButton(200, 500, 'Menu', 0x607D8B, () => {
             this.scene.start('MenuScene');
         });
     }
+
+    createButton(x, y, text, color, callback) {
+        const g = this.add.graphics().setScrollFactor(0);
+        g.fillStyle(color, 1);
+        g.fillRoundedRect(x - 100, y - 25, 200, 50, 12);
+
+        this.add.text(x, y, text, {
+            fontSize: '24px',
+            fontFamily: 'Arial Black',
+            fill: '#fff'
+        }).setOrigin(0.5).setScrollFactor(0);
+
+        const zone = this.add.zone(x, y, 200, 50).setInteractive().setScrollFactor(0);
+        zone.on('pointerdown', callback);
+    }
 }
 
-// Game configuration
 const config = {
     type: Phaser.AUTO,
     parent: 'game-container',
@@ -528,13 +445,9 @@ const config = {
     },
     physics: {
         default: 'arcade',
-        arcade: {
-            gravity: { y: 900 },
-            debug: false
-        }
+        arcade: { gravity: { y: 900 }, debug: false }
     },
     scene: [MenuScene, GameScene]
 };
 
-// Initialize game
-const game = new Phaser.Game(config);
+new Phaser.Game(config);
