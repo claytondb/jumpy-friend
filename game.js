@@ -5,10 +5,6 @@ class MenuScene extends Phaser.Scene {
         super({ key: 'MenuScene' });
     }
 
-    preload() {
-        this.load.image('character', 'assets/character.png');
-    }
-
     create() {
         const graphics = this.add.graphics();
         graphics.fillGradientStyle(0x87CEEB, 0x87CEEB, 0x4AA8D8, 0x4AA8D8, 1);
@@ -17,15 +13,8 @@ class MenuScene extends Phaser.Scene {
         this.add.text(50, 50, '☁️', { fontSize: '48px' }).setAlpha(0.6);
         this.add.text(280, 80, '☁️', { fontSize: '32px' }).setAlpha(0.5);
 
-        this.character = this.add.image(200, 280, 'character').setScale(1.5);
-        this.tweens.add({
-            targets: this.character,
-            y: 260,
-            duration: 800,
-            ease: 'Sine.easeInOut',
-            yoyo: true,
-            repeat: -1
-        });
+        // Draw the character (green square with smiley)
+        this.drawCharacter(200, 280, 1.5);
 
         this.add.text(200, 80, 'Jumpy Friend', {
             fontSize: '42px',
@@ -74,6 +63,43 @@ class MenuScene extends Phaser.Scene {
             stroke: '#333',
             strokeThickness: 2
         }).setOrigin(0.5);
+
+        // Bounce animation for menu character
+        this.tweens.add({
+            targets: this.menuChar,
+            y: 260,
+            duration: 800,
+            ease: 'Sine.easeInOut',
+            yoyo: true,
+            repeat: -1
+        });
+    }
+
+    drawCharacter(x, y, scale) {
+        const size = 50 * scale;
+        const g = this.add.graphics();
+        
+        // Green square body
+        g.fillStyle(0x4CAF50, 1);
+        g.fillRoundedRect(x - size/2, y - size/2, size, size, 8 * scale);
+        
+        // Black outline
+        g.lineStyle(3 * scale, 0x2E7D32, 1);
+        g.strokeRoundedRect(x - size/2, y - size/2, size, size, 8 * scale);
+        
+        // Eyes (black dots)
+        g.fillStyle(0x000000, 1);
+        g.fillCircle(x - size * 0.2, y - size * 0.1, 4 * scale);
+        g.fillCircle(x + size * 0.2, y - size * 0.1, 4 * scale);
+        
+        // Smile (black arc)
+        g.lineStyle(3 * scale, 0x000000, 1);
+        g.beginPath();
+        g.arc(x, y + size * 0.05, size * 0.25, 0.2, Math.PI - 0.2, false);
+        g.strokePath();
+        
+        this.menuChar = g;
+        g.setPosition(0, 0);
     }
 }
 
@@ -84,10 +110,6 @@ class GameScene extends Phaser.Scene {
 
     init(data) {
         this.difficulty = data.difficulty || 'easy';
-    }
-
-    preload() {
-        this.load.image('character', 'assets/character.png');
     }
 
     create() {
@@ -113,7 +135,7 @@ class GameScene extends Phaser.Scene {
         };
         this.settings = settings[this.difficulty];
 
-        // Platforms - using regular group for one-way collision
+        // Platforms
         this.platforms = this.physics.add.group({
             allowGravity: false,
             immovable: true
@@ -135,19 +157,19 @@ class GameScene extends Phaser.Scene {
         }
         this.topPlatformY = y;
 
-        // Character
-        this.player = this.physics.add.sprite(200, 500, 'character');
-        this.player.setScale(0.5);
-        this.player.body.setSize(50, 60);
-        this.player.body.setOffset(39, 68);
+        // Create character sprite (green square with smiley)
+        this.createPlayerSprite();
+        
+        // Player physics body
+        this.player = this.physics.add.sprite(200, 500, 'player');
+        this.player.setDisplaySize(50, 50);
+        this.player.body.setSize(50, 50);
         this.player.setCollideWorldBounds(false);
         this.player.setBounce(0);
         this.player.setVelocityX(this.settings.speed);
 
         // ONE-WAY PLATFORM COLLISION
-        // Only collide when player is falling down onto platform
         this.physics.add.collider(this.player, this.platforms, null, (player, platform) => {
-            // Only collide if player is moving downward and above the platform
             return player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 10;
         }, this);
 
@@ -184,6 +206,34 @@ class GameScene extends Phaser.Scene {
         this.cameras.main.setBounds(0, -99999, 400, 999999);
     }
 
+    createPlayerSprite() {
+        // Create a canvas texture for the player
+        const size = 50;
+        const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+        
+        // Green square body with rounded corners
+        graphics.fillStyle(0x4CAF50, 1);
+        graphics.fillRoundedRect(0, 0, size, size, 8);
+        
+        // Darker green outline
+        graphics.lineStyle(3, 0x2E7D32, 1);
+        graphics.strokeRoundedRect(0, 0, size, size, 8);
+        
+        // Eyes (black dots)
+        graphics.fillStyle(0x000000, 1);
+        graphics.fillCircle(size * 0.3, size * 0.4, 4);
+        graphics.fillCircle(size * 0.7, size * 0.4, 4);
+        
+        // Smile (black arc)
+        graphics.lineStyle(3, 0x000000, 1);
+        graphics.beginPath();
+        graphics.arc(size * 0.5, size * 0.55, size * 0.25, 0.2, Math.PI - 0.2, false);
+        graphics.strokePath();
+        
+        graphics.generateTexture('player', size, size);
+        graphics.destroy();
+    }
+
     createPlatform(x, y, width, moving = false) {
         const g = this.make.graphics();
         g.fillStyle(0x8B4513);
@@ -202,7 +252,7 @@ class GameScene extends Phaser.Scene {
         const p = this.platforms.create(x, y, key);
         p.body.setSize(width, 10);
         p.body.setOffset(0, 7);
-        p.body.checkCollision.down = false; // Can pass through from below
+        p.body.checkCollision.down = false;
         p.body.checkCollision.left = false;
         p.body.checkCollision.right = false;
         
@@ -217,6 +267,7 @@ class GameScene extends Phaser.Scene {
     onPointerDown() {
         if (this.gameOver) return;
         
+        // CAN ALWAYS CHARGE - no ground check!
         this.isCharging = true;
         this.chargeStartTime = this.time.now;
         this.chargeLabel.setText('CHARGING...');
@@ -225,8 +276,8 @@ class GameScene extends Phaser.Scene {
         this.tweens.killTweensOf(this.player);
         this.tweens.add({
             targets: this.player,
-            scaleY: 0.35,
-            scaleX: 0.6,
+            scaleY: 0.7,
+            scaleX: 1.3,
             duration: 100
         });
     }
@@ -241,15 +292,10 @@ class GameScene extends Phaser.Scene {
         
         this.isCharging = false;
         
-        // Check if on ground (allow small tolerance)
-        const onGround = this.player.body.blocked.down || this.player.body.touching.down;
-        
-        if (onGround) {
-            // MORE POWERFUL JUMP! -450 to -950
-            const velocity = -450 - (power * 500);
-            this.player.setVelocityY(velocity);
-            this.jumpCount++;
-        }
+        // JUMP ANYTIME - no ground check! SUPER POWERFUL!
+        const velocity = -600 - (power * 600); // -600 to -1200!
+        this.player.setVelocityY(velocity);
+        this.jumpCount++;
         
         // Reset visuals
         this.meterFill.clear();
@@ -258,8 +304,8 @@ class GameScene extends Phaser.Scene {
         this.tweens.killTweensOf(this.player);
         this.tweens.add({
             targets: this.player,
-            scaleY: 0.5,
-            scaleX: 0.5,
+            scaleY: 1,
+            scaleX: 1,
             duration: 100
         });
     }
@@ -305,11 +351,9 @@ class GameScene extends Phaser.Scene {
         if (this.player.x < 25) {
             this.player.x = 25;
             this.player.setVelocityX(Math.abs(this.player.body.velocity.x));
-            this.player.setFlipX(false);
         } else if (this.player.x > 375) {
             this.player.x = 375;
             this.player.setVelocityX(-Math.abs(this.player.body.velocity.x));
-            this.player.setFlipX(true);
         }
 
         // Moving platforms bounce
