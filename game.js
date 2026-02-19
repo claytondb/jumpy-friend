@@ -126,6 +126,11 @@ class GameScene extends Phaser.Scene {
         // CHARGING STATE
         this.isCharging = false;
         this.chargeStartTime = 0;
+        
+        // AIR JUMP STATE - only 1 air jump allowed per platform touch
+        this.airJumpsUsed = 0;
+        this.maxAirJumps = 1;
+        this.wasOnGround = true;
 
         // Settings per difficulty
         const settings = {
@@ -168,8 +173,13 @@ class GameScene extends Phaser.Scene {
         this.player.setBounce(0);
         this.player.setVelocityX(this.settings.speed);
 
-        // ONE-WAY PLATFORM COLLISION
-        this.physics.add.collider(this.player, this.platforms, null, (player, platform) => {
+        // ONE-WAY PLATFORM COLLISION - reset air jumps on landing
+        this.physics.add.collider(this.player, this.platforms, (player, platform) => {
+            // Landed on platform - reset air jumps and rotation
+            this.airJumpsUsed = 0;
+            this.player.setAngularVelocity(0);
+            this.player.setRotation(0);
+        }, (player, platform) => {
             return player.body.velocity.y > 0 && player.body.bottom <= platform.body.top + 10;
         }, this);
 
@@ -292,10 +302,42 @@ class GameScene extends Phaser.Scene {
         
         this.isCharging = false;
         
-        // JUMP ANYTIME - no ground check! SUPER POWERFUL!
+        // Check if we can jump
+        const onGround = this.player.body.touching.down || this.player.body.blocked.down;
+        
+        if (!onGround) {
+            // In the air - check if we have air jumps left
+            if (this.airJumpsUsed >= this.maxAirJumps) {
+                // No air jumps left - cancel the jump
+                this.meterFill.clear();
+                this.chargeLabel.setText('NO AIR JUMP!');
+                this.time.delayedCall(500, () => {
+                    if (!this.isCharging) this.chargeLabel.setText('HOLD TO CHARGE');
+                });
+                
+                // Reset scale
+                this.tweens.killTweensOf(this.player);
+                this.tweens.add({
+                    targets: this.player,
+                    scaleY: 1,
+                    scaleX: 1,
+                    duration: 100
+                });
+                return;
+            }
+            // Use an air jump
+            this.airJumpsUsed++;
+        }
+        
+        // JUMP!
         const velocity = -600 - (power * 600); // -600 to -1200!
         this.player.setVelocityY(velocity);
         this.jumpCount++;
+        
+        // SPIN when jumping! Spin speed based on power
+        const spinSpeed = 300 + (power * 400); // 300 to 700 degrees per second
+        const spinDirection = this.player.body.velocity.x > 0 ? 1 : -1;
+        this.player.setAngularVelocity(spinSpeed * spinDirection);
         
         // Reset visuals
         this.meterFill.clear();
