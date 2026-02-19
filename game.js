@@ -8,66 +8,66 @@ class MenuScene extends Phaser.Scene {
     create() {
         const graphics = this.add.graphics();
         graphics.fillGradientStyle(0x87CEEB, 0x87CEEB, 0x4AA8D8, 0x4AA8D8, 1);
-        graphics.fillRect(0, 0, 400, 600);
+        graphics.fillRect(0, 0, 800, 1200);
 
-        this.add.text(50, 50, '☁️', { fontSize: '48px' }).setAlpha(0.6);
-        this.add.text(280, 80, '☁️', { fontSize: '32px' }).setAlpha(0.5);
+        this.add.text(100, 100, '☁️', { fontSize: '96px' }).setAlpha(0.6);
+        this.add.text(560, 160, '☁️', { fontSize: '64px' }).setAlpha(0.5);
 
         // Draw the character (green square with smiley)
-        this.drawCharacter(200, 280, 1.5);
+        this.drawCharacter(400, 560, 3);
 
-        this.add.text(200, 80, 'Jumpy Friend', {
-            fontSize: '42px',
+        this.add.text(400, 160, 'Jumpy Friend', {
+            fontSize: '84px',
             fontFamily: 'Arial Black, sans-serif',
             fill: '#4CAF50',
             stroke: '#2d5a27',
-            strokeThickness: 4
+            strokeThickness: 8
         }).setOrigin(0.5);
 
-        this.add.text(200, 150, 'HOLD to charge\nRELEASE to jump!', {
-            fontSize: '20px',
+        this.add.text(400, 300, 'HOLD to charge\nRELEASE to jump!', {
+            fontSize: '40px',
             fontFamily: 'Arial, sans-serif',
             fill: '#fff',
             stroke: '#333',
-            strokeThickness: 3,
+            strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5);
 
         const difficulties = [
-            { name: 'Easy', y: 380, color: 0x4CAF50 },
-            { name: 'Medium', y: 440, color: 0xFF9800 },
-            { name: 'Hard', y: 500, color: 0xF44336 }
+            { name: 'Easy', y: 760, color: 0x4CAF50 },
+            { name: 'Medium', y: 880, color: 0xFF9800 },
+            { name: 'Hard', y: 1000, color: 0xF44336 }
         ];
 
         difficulties.forEach(diff => {
             const btn = this.add.graphics();
             btn.fillStyle(diff.color, 1);
-            btn.fillRoundedRect(100, diff.y - 22, 200, 44, 12);
+            btn.fillRoundedRect(200, diff.y - 44, 400, 88, 24);
 
-            this.add.text(200, diff.y, diff.name, {
-                fontSize: '24px',
+            this.add.text(400, diff.y, diff.name, {
+                fontSize: '48px',
                 fontFamily: 'Arial Black, sans-serif',
                 fill: '#fff'
             }).setOrigin(0.5);
 
-            const zone = this.add.zone(200, diff.y, 200, 44).setInteractive();
+            const zone = this.add.zone(400, diff.y, 400, 88).setInteractive();
             zone.on('pointerdown', () => {
                 this.scene.start('GameScene', { difficulty: diff.name.toLowerCase() });
             });
         });
 
         const best = localStorage.getItem('jumpyfriend_highscore') || '0';
-        this.add.text(200, 560, `Best: ${best}`, {
-            fontSize: '18px',
+        this.add.text(400, 1120, `Best: ${best}`, {
+            fontSize: '36px',
             fill: '#fff',
             stroke: '#333',
-            strokeThickness: 2
+            strokeThickness: 4
         }).setOrigin(0.5);
 
         // Bounce animation for menu character
         this.tweens.add({
             targets: this.menuChar,
-            y: 260,
+            y: -40,
             duration: 800,
             ease: 'Sine.easeInOut',
             yoyo: true,
@@ -119,7 +119,7 @@ class GameScene extends Phaser.Scene {
 
         // State
         this.score = 0;
-        this.maxHeight = 600;
+        this.maxHeight = 1200;
         this.gameOver = false;
         this.jumpCount = 0;
         
@@ -132,11 +132,11 @@ class GameScene extends Phaser.Scene {
         this.maxAirJumps = 1;
         this.wasOnGround = true;
 
-        // Settings per difficulty
+        // Settings per difficulty (2x scaled)
         const settings = {
-            easy: { gap: 100, width: 110, moving: 0.1, speed: 90 },
-            medium: { gap: 120, width: 90, moving: 0.25, speed: 110 },
-            hard: { gap: 140, width: 70, moving: 0.4, speed: 130 }
+            easy: { gap: 200, width: 220, moving: 0.1, speed: 180 },
+            medium: { gap: 240, width: 180, moving: 0.25, speed: 220 },
+            hard: { gap: 280, width: 140, moving: 0.4, speed: 260 }
         };
         this.settings = settings[this.difficulty];
 
@@ -147,14 +147,14 @@ class GameScene extends Phaser.Scene {
         });
 
         // Ground
-        this.createPlatform(200, 560, 200);
+        this.createPlatform(400, 1120, 400);
 
         // Initial platforms
-        let y = 460;
+        let y = 920;
         for (let i = 0; i < 10; i++) {
-            y -= Phaser.Math.Between(this.settings.gap - 20, this.settings.gap + 20);
+            y -= Phaser.Math.Between(this.settings.gap - 40, this.settings.gap + 40);
             this.createPlatform(
-                Phaser.Math.Between(80, 320),
+                Phaser.Math.Between(160, 640),
                 y,
                 this.settings.width,
                 Math.random() < this.settings.moving
@@ -166,9 +166,9 @@ class GameScene extends Phaser.Scene {
         this.createPlayerSprite();
         
         // Player physics body
-        this.player = this.physics.add.sprite(200, 500, 'player');
-        this.player.setDisplaySize(50, 50);
-        this.player.body.setSize(50, 50);
+        this.player = this.physics.add.sprite(400, 1000, 'player');
+        this.player.setDisplaySize(100, 100);
+        this.player.body.setSize(100, 100);
         this.player.setCollideWorldBounds(false);
         this.player.setBounce(0);
         this.player.setVelocityX(this.settings.speed);
@@ -188,54 +188,54 @@ class GameScene extends Phaser.Scene {
         this.input.on('pointerup', () => this.onPointerUp());
 
         // ========== UI ==========
-        this.scoreText = this.add.text(200, 30, '0', {
-            fontSize: '48px',
+        this.scoreText = this.add.text(400, 60, '0', {
+            fontSize: '96px',
             fontFamily: 'Arial Black',
             fill: '#fff',
             stroke: '#333',
-            strokeThickness: 5
+            strokeThickness: 10
         }).setOrigin(0.5).setScrollFactor(0);
 
         // Charge meter background
         this.meterBg = this.add.graphics().setScrollFactor(0);
         this.meterBg.fillStyle(0x000000, 0.6);
-        this.meterBg.fillRoundedRect(50, 520, 300, 50, 25);
+        this.meterBg.fillRoundedRect(100, 1040, 600, 100, 50);
 
         // Charge meter fill
         this.meterFill = this.add.graphics().setScrollFactor(0);
 
         // Charge text
-        this.chargeLabel = this.add.text(200, 545, 'HOLD TO CHARGE', {
-            fontSize: '18px',
+        this.chargeLabel = this.add.text(400, 1090, 'HOLD TO CHARGE', {
+            fontSize: '36px',
             fontFamily: 'Arial Black',
             fill: '#fff'
         }).setOrigin(0.5).setScrollFactor(0);
 
         // Camera
-        this.cameras.main.startFollow(this.player, true, 0.1, 0.1, 0, 80);
-        this.cameras.main.setBounds(0, -99999, 400, 999999);
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1, 0, 160);
+        this.cameras.main.setBounds(0, -99999, 800, 999999);
     }
 
     createPlayerSprite() {
-        // Create a canvas texture for the player
-        const size = 50;
+        // Create a canvas texture for the player (2x resolution)
+        const size = 100;
         const graphics = this.make.graphics({ x: 0, y: 0, add: false });
         
         // Green square body with rounded corners
         graphics.fillStyle(0x4CAF50, 1);
-        graphics.fillRoundedRect(0, 0, size, size, 8);
+        graphics.fillRoundedRect(0, 0, size, size, 16);
         
         // Darker green outline
-        graphics.lineStyle(3, 0x2E7D32, 1);
-        graphics.strokeRoundedRect(0, 0, size, size, 8);
+        graphics.lineStyle(6, 0x2E7D32, 1);
+        graphics.strokeRoundedRect(0, 0, size, size, 16);
         
         // Eyes (black dots)
         graphics.fillStyle(0x000000, 1);
-        graphics.fillCircle(size * 0.3, size * 0.4, 4);
-        graphics.fillCircle(size * 0.7, size * 0.4, 4);
+        graphics.fillCircle(size * 0.3, size * 0.4, 8);
+        graphics.fillCircle(size * 0.7, size * 0.4, 8);
         
         // Smile (black arc)
-        graphics.lineStyle(3, 0x000000, 1);
+        graphics.lineStyle(6, 0x000000, 1);
         graphics.beginPath();
         graphics.arc(size * 0.5, size * 0.55, size * 0.25, 0.2, Math.PI - 0.2, false);
         graphics.strokePath();
@@ -247,29 +247,29 @@ class GameScene extends Phaser.Scene {
     createPlatform(x, y, width, moving = false) {
         const g = this.make.graphics();
         g.fillStyle(0x8B4513);
-        g.fillRoundedRect(0, 10, width, 14, 4);
+        g.fillRoundedRect(0, 20, width, 28, 8);
         g.fillStyle(0x228B22);
-        g.fillRoundedRect(0, 0, width, 14, 6);
+        g.fillRoundedRect(0, 0, width, 28, 12);
         g.fillStyle(0x32CD32);
-        g.fillRoundedRect(4, 2, width - 8, 6, 3);
+        g.fillRoundedRect(8, 4, width - 16, 12, 6);
 
         const key = `plat_${width}`;
         if (!this.textures.exists(key)) {
-            g.generateTexture(key, width, 24);
+            g.generateTexture(key, width, 48);
         }
         g.destroy();
 
         const p = this.platforms.create(x, y, key);
-        p.body.setSize(width, 10);
-        p.body.setOffset(0, 7);
+        p.body.setSize(width, 20);
+        p.body.setOffset(0, 14);
         p.body.checkCollision.down = false;
         p.body.checkCollision.left = false;
         p.body.checkCollision.right = false;
         
         if (moving) {
-            p.setVelocityX(Phaser.Math.Between(50, 100) * (Math.random() > 0.5 ? 1 : -1));
-            p.setData('left', x - 60);
-            p.setData('right', x + 60);
+            p.setVelocityX(Phaser.Math.Between(100, 200) * (Math.random() > 0.5 ? 1 : -1));
+            p.setData('left', x - 120);
+            p.setData('right', x + 120);
             p.setData('moving', true);
         }
     }
@@ -329,8 +329,8 @@ class GameScene extends Phaser.Scene {
             this.airJumpsUsed++;
         }
         
-        // JUMP!
-        const velocity = -600 - (power * 600); // -600 to -1200!
+        // JUMP! (2x velocity for 2x resolution)
+        const velocity = -1200 - (power * 1200); // -1200 to -2400!
         this.player.setVelocityY(velocity);
         this.jumpCount++;
         
@@ -380,7 +380,7 @@ class GameScene extends Phaser.Scene {
             }
             
             this.meterFill.fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 1);
-            this.meterFill.fillRoundedRect(55, 525, 290 * power, 40, 20);
+            this.meterFill.fillRoundedRect(110, 1050, 580 * power, 80, 40);
 
             if (power >= 1) {
                 this.chargeLabel.setText('MAX POWER!');
@@ -389,12 +389,12 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        // Wall bounce
-        if (this.player.x < 25) {
-            this.player.x = 25;
+        // Wall bounce (2x values)
+        if (this.player.x < 50) {
+            this.player.x = 50;
             this.player.setVelocityX(Math.abs(this.player.body.velocity.x));
-        } else if (this.player.x > 375) {
-            this.player.x = 375;
+        } else if (this.player.x > 750) {
+            this.player.x = 750;
             this.player.setVelocityX(-Math.abs(this.player.body.velocity.x));
         }
 
@@ -406,11 +406,11 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        // Generate platforms above
-        while (this.topPlatformY > this.cameras.main.scrollY - 200) {
-            this.topPlatformY -= Phaser.Math.Between(this.settings.gap - 20, this.settings.gap + 20);
+        // Generate platforms above (2x values)
+        while (this.topPlatformY > this.cameras.main.scrollY - 400) {
+            this.topPlatformY -= Phaser.Math.Between(this.settings.gap - 40, this.settings.gap + 40);
             this.createPlatform(
-                Phaser.Math.Between(80, 320),
+                Phaser.Math.Between(160, 640),
                 this.topPlatformY,
                 this.settings.width,
                 Math.random() < this.settings.moving
@@ -418,21 +418,21 @@ class GameScene extends Phaser.Scene {
         }
 
         // Remove platforms below
-        const bottomY = this.cameras.main.scrollY + 700;
+        const bottomY = this.cameras.main.scrollY + 1400;
         this.platforms.children.iterate(p => { if (p && p.y > bottomY) p.destroy(); });
 
         // Score
         if (this.player.y < this.maxHeight) {
             this.maxHeight = this.player.y;
-            this.score = Math.floor((600 - this.maxHeight) / 10);
+            this.score = Math.floor((1200 - this.maxHeight) / 20);
             this.scoreText.setText(this.score);
         }
 
         // Background
         this.drawBackground();
 
-        // Death
-        if (this.player.y > this.cameras.main.scrollY + 650) {
+        // Death (2x values)
+        if (this.player.y > this.cameras.main.scrollY + 1300) {
             this.endGame();
         }
     }
@@ -440,13 +440,13 @@ class GameScene extends Phaser.Scene {
     drawBackground() {
         const h = Math.abs(this.cameras.main.scrollY);
         let top = 0x87CEEB, bot = 0xADD8E6;
-        if (h > 2000) { top = 0x5DADE2; bot = 0x87CEEB; }
-        if (h > 5000) { top = 0x3498DB; bot = 0x5DADE2; }
-        if (h > 10000) { top = 0x1A5276; bot = 0x3498DB; }
+        if (h > 4000) { top = 0x5DADE2; bot = 0x87CEEB; }
+        if (h > 10000) { top = 0x3498DB; bot = 0x5DADE2; }
+        if (h > 20000) { top = 0x1A5276; bot = 0x3498DB; }
 
         this.bg.clear();
         this.bg.fillGradientStyle(top, top, bot, bot, 1);
-        this.bg.fillRect(0, this.cameras.main.scrollY - 50, 400, 700);
+        this.bg.fillRect(0, this.cameras.main.scrollY - 100, 800, 1400);
         this.bg.setDepth(-1);
     }
 
@@ -461,36 +461,36 @@ class GameScene extends Phaser.Scene {
 
         const ov = this.add.graphics().setScrollFactor(0);
         ov.fillStyle(0x000000, 0.8);
-        ov.fillRect(0, 0, 400, 600);
+        ov.fillRect(0, 0, 800, 1200);
 
-        this.add.text(200, 150, 'GAME OVER', {
-            fontSize: '48px',
+        this.add.text(400, 300, 'GAME OVER', {
+            fontSize: '96px',
             fontFamily: 'Arial Black',
             fill: '#F44336'
         }).setOrigin(0.5).setScrollFactor(0);
 
-        this.add.text(200, 230, `Score: ${this.score}`, {
-            fontSize: '36px',
+        this.add.text(400, 460, `Score: ${this.score}`, {
+            fontSize: '72px',
             fill: '#fff'
         }).setOrigin(0.5).setScrollFactor(0);
 
-        this.add.text(200, 280, `Jumps: ${this.jumpCount}`, {
-            fontSize: '20px',
+        this.add.text(400, 560, `Jumps: ${this.jumpCount}`, {
+            fontSize: '40px',
             fill: '#aaa'
         }).setOrigin(0.5).setScrollFactor(0);
 
         if (this.score >= best && this.score > 0) {
-            this.add.text(200, 330, '🏆 NEW BEST! 🏆', {
-                fontSize: '28px',
+            this.add.text(400, 660, '🏆 NEW BEST! 🏆', {
+                fontSize: '56px',
                 fill: '#FFD700'
             }).setOrigin(0.5).setScrollFactor(0);
         }
 
-        this.createButton(200, 420, 'Play Again', 0x4CAF50, () => {
+        this.createButton(400, 840, 'Play Again', 0x4CAF50, () => {
             this.scene.restart({ difficulty: this.difficulty });
         });
 
-        this.createButton(200, 500, 'Menu', 0x607D8B, () => {
+        this.createButton(400, 1000, 'Menu', 0x607D8B, () => {
             this.scene.start('MenuScene');
         });
     }
@@ -498,29 +498,28 @@ class GameScene extends Phaser.Scene {
     createButton(x, y, text, color, callback) {
         const g = this.add.graphics().setScrollFactor(0);
         g.fillStyle(color, 1);
-        g.fillRoundedRect(x - 100, y - 25, 200, 50, 12);
+        g.fillRoundedRect(x - 200, y - 50, 400, 100, 24);
 
         this.add.text(x, y, text, {
-            fontSize: '24px',
+            fontSize: '48px',
             fontFamily: 'Arial Black',
             fill: '#fff'
         }).setOrigin(0.5).setScrollFactor(0);
 
-        const zone = this.add.zone(x, y, 200, 50).setInteractive().setScrollFactor(0);
+        const zone = this.add.zone(x, y, 400, 100).setInteractive().setScrollFactor(0);
         zone.on('pointerdown', callback);
     }
 }
 
-// Calculate proper resolution for crisp rendering
-const dpr = window.devicePixelRatio || 1;
-const gameWidth = 400;
-const gameHeight = 600;
+// Render at 2x resolution for crisp display on all devices
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 1200;
 
 const config = {
-    type: Phaser.WEBGL,  // Force WebGL for better rendering
+    type: Phaser.AUTO,
     parent: 'game-container',
-    width: gameWidth,
-    height: gameHeight,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
     backgroundColor: '#87CEEB',
     scale: {
         mode: Phaser.Scale.FIT,
@@ -528,24 +527,13 @@ const config = {
     },
     physics: {
         default: 'arcade',
-        arcade: { gravity: { y: 800 }, debug: false }
+        arcade: { gravity: { y: 1600 }, debug: false }  // 2x gravity
     },
     render: {
         antialias: true,
-        antialiasGL: true,
-        pixelArt: false,
-        roundPixels: false,
-        // This is the key for crisp retina rendering
-        resolution: dpr
+        pixelArt: false
     },
     scene: [MenuScene, GameScene]
 };
 
-const game = new Phaser.Game(config);
-
-// Ensure canvas is styled correctly after creation
-game.events.once('ready', () => {
-    const canvas = game.canvas;
-    canvas.style.width = `${gameWidth}px`;
-    canvas.style.height = `${gameHeight}px`;
-});
+new Phaser.Game(config);
