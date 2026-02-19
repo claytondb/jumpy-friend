@@ -511,11 +511,16 @@ class GameScene extends Phaser.Scene {
     }
 }
 
+// Calculate proper resolution for crisp rendering
+const dpr = window.devicePixelRatio || 1;
+const gameWidth = 400;
+const gameHeight = 600;
+
 const config = {
-    type: Phaser.AUTO,
+    type: Phaser.WEBGL,  // Force WebGL for better rendering
     parent: 'game-container',
-    width: 400,
-    height: 600,
+    width: gameWidth,
+    height: gameHeight,
     backgroundColor: '#87CEEB',
     scale: {
         mode: Phaser.Scale.FIT,
@@ -525,7 +530,22 @@ const config = {
         default: 'arcade',
         arcade: { gravity: { y: 800 }, debug: false }
     },
+    render: {
+        antialias: true,
+        antialiasGL: true,
+        pixelArt: false,
+        roundPixels: false,
+        // This is the key for crisp retina rendering
+        resolution: dpr
+    },
     scene: [MenuScene, GameScene]
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// Ensure canvas is styled correctly after creation
+game.events.once('ready', () => {
+    const canvas = game.canvas;
+    canvas.style.width = `${gameWidth}px`;
+    canvas.style.height = `${gameHeight}px`;
+});
